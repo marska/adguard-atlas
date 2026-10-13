@@ -30,7 +30,7 @@ jobs:
     name: Types, lint, tests and the static demo
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # The version is written down twice — package.json, and APP_VERSION, which
       # is what the running app reports — so a tag that disagrees with either would
@@ -111,7 +111,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Publish from master and release tags only, never from a pull request
         id: gate
