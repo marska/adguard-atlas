@@ -15,6 +15,9 @@ One container, read-only use of AdGuard Home, no changes to your network.
 
 Not affiliated with AdGuard.
 
+**Live demo: <https://atlas-demo.tty0.app>** — synthetic traffic generated in your
+browser; the page connects to nothing.
+
 ## Screenshot
 
 ![AdGuard Atlas in demo mode: a world map with arcs from home to query destinations, counters on the left and a live feed on the right](docs/images/adguard-atlas.png)
@@ -28,11 +31,13 @@ its traffic in your browser. No AdGuard Home is contacted and nothing needs
 configuring.
 
 ```sh
-docker build -t adguard-atlas .
 docker run --rm -p 8080:8080 -e DEMO=true \
   --read-only --cap-drop ALL --security-opt no-new-privileges \
-  adguard-atlas
+  ghcr.io/marska/adguard-atlas:edge
 ```
+
+`edge` is the tip of `master`. To build the image yourself instead, run
+`docker build -t adguard-atlas .` and use `adguard-atlas` as the image name.
 
 Open <http://localhost:8080>.
 
