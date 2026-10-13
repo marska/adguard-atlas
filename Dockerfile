@@ -49,7 +49,7 @@ COPY --from=demo-build /app/dist/demo /
 # one. GEOIP_URL overrides the location. GEOIP=skip builds an image without a
 # database (for offline builds): such an image only locates anything when a
 # database is mounted and GEOIP_DB points at it.
-FROM --platform=$BUILDPLATFORM alpine:3.22 AS geoip
+FROM --platform=$BUILDPLATFORM alpine:3.24 AS geoip
 ARG GEOIP=download
 ARG GEOIP_URL=""
 RUN set -eu; \
