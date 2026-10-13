@@ -15,6 +15,12 @@ One container, read-only use of AdGuard Home, no changes to your network.
 
 Not affiliated with AdGuard.
 
+## Screenshot
+
+![AdGuard Atlas in demo mode: a world map with arcs from home to query destinations, counters on the left and a live feed on the right](docs/images/adguard-atlas.png)
+
+Demo mode — every device, domain and query in the picture is generated.
+
 ## Try it in ten seconds (demo mode)
 
 Demo mode invents a household — a TV, phones, a chatty smart plug — and generates
