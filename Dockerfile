@@ -11,7 +11,10 @@
 ARG NODE_VERSION=22
 
 # --- dependencies ---------------------------------------------------------------
-FROM node:${NODE_VERSION}-alpine AS deps
+# Everything up to the runtime stage produces platform-independent output (bundled
+# JavaScript, a data file), so it runs once on the build machine's own architecture
+# and a multi-platform build only emulates the runtime stage.
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-alpine AS deps
 WORKDIR /app
 ENV npm_config_update_notifier=false npm_config_fund=false npm_config_audit=false
 COPY package.json package-lock.json ./
@@ -46,7 +49,7 @@ COPY --from=demo-build /app/dist/demo /
 # one. GEOIP_URL overrides the location. GEOIP=skip builds an image without a
 # database (for offline builds): such an image only locates anything when a
 # database is mounted and GEOIP_DB points at it.
-FROM alpine:3.22 AS geoip
+FROM --platform=$BUILDPLATFORM alpine:3.22 AS geoip
 ARG GEOIP=download
 ARG GEOIP_URL=""
 RUN set -eu; \

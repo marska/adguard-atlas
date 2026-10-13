@@ -1,0 +1,46 @@
+version: 2
+
+# Everything below opens against `dev`, not `master`: `dev` is where a bump that
+# needs its neighbours moved in the same breath gets worked out, and nothing built
+# from it reaches Docker Hub or the demo.
+#
+# `target-branch` applies to version updates only. Dependabot security updates,
+# the ones raised from an advisory, always open against the default branch.
+updates:
+  # The server is bundled into one file and the front end into minified chunks, so
+  # the image carries no package metadata for a scanner to read. The lockfile is
+  # the only place these versions are still legible.
+  - package-ecosystem: npm
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    # Routine churn arrives as two pull requests rather than fifteen. Majors stay
+    # separate: they are the ones that need reading.
+    groups:
+      production:
+        dependency-type: production
+        update-types: [minor, patch]
+      development:
+        dependency-type: development
+        update-types: [minor, patch]
+
+  # Actions are executable code in the pipeline with access to the publishing
+  # credentials, and they are pinned to tags that move under them.
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+
+  # The base images in the Dockerfile. This catches a new Node or Alpine line; the
+  # weekly rebuild only refreshes patches inside the tags already pinned.
+  - package-ecosystem: docker
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday

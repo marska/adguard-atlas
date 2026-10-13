@@ -192,6 +192,30 @@ The static demo is what `npm run build:demo` produces (`dist/demo`). It includes
 well. It has to be served over HTTP by any static file server; browsers do not load
 module scripts from `file://`.
 
+### Pipeline
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs the same Dockerfile
+targets: `check`, then the static demo, then the image — started with the hardening
+flags and exercised, scanned with Trivy (HIGH and CRITICAL with a fix available),
+and only then pushed.
+
+| Ref | Image tags on Docker Hub | Demo |
+| --- | --- | --- |
+| `master` | `edge`, `master`, `sha-…` | deployed to Cloudflare Pages |
+| tag `v1.2.3` | `1.2.3`, `1.2`, `1`, `latest` | — |
+| `dev`, pull requests | built, tested and scanned; nothing is published | — |
+
+`latest` is the newest release and nothing else; the tip of `master` is `edge`. A
+weekly run rebuilds `edge` without cache, which is how patched base images and the
+current month's GeoIP database reach it.
+
+Publishing needs the repository secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`
+(images are linux/amd64 and linux/arm64; the variable `DOCKERHUB_IMAGE` overrides
+the name), and the demo needs `CLOUDFLARE_API_TOKEN` (permission *Cloudflare Pages:
+Edit*) and `CLOUDFLARE_ACCOUNT_ID`. Without them the pipeline still builds and
+tests, and says in a notice that it published nothing. The Pages project
+`adguard-atlas` is created by the first deployment.
+
 Layout: `src/server` (polling, classification, GeoIP, event stream), `src/web`
 (React shell, canvas map, in-browser demo generator), `src/shared` (the event type
 both sides speak), `test` (including a fake AdGuard Home and recorded query-log

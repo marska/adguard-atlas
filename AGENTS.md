@@ -38,6 +38,15 @@ committing it.
 - `src/shared` — the event type both sides speak.
 - `test` — vitest; includes a fake AdGuard Home and a recorded query-log fixture.
 
+## Pipeline
+
+`.github/workflows/ci.yml` builds the `check` and `demo` targets, then the image,
+which it starts with the hardening flags, exercises and scans before pushing.
+`master` publishes `edge` to Docker Hub and the demo to Cloudflare Pages; a `v*.*.*`
+tag publishes a release and `latest`; `dev` and pull requests publish nothing.
+Dependabot opens against `dev`. A change to the smoke test is worth running by hand
+against a local image first — it is plain shell.
+
 ## Rules that are easy to break
 
 - **Read-only towards AdGuard Home.** The server issues `GET /control/querylog` and
@@ -55,7 +64,8 @@ committing it.
 
 ## Git
 
-- Branch `master` is the release line; work happens on branches.
+- Branch `master` is the release line; work happens on `dev` or a branch off it.
+  A push to `master` publishes.
 - Commits go in the owner's name only: no `Co-Authored-By`, no "Generated with"
   footer, no mention of a tool — in commit messages and pull requests alike.
 - Do not push or add a remote unless asked.

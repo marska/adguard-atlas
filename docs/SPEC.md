@@ -193,6 +193,8 @@ Same shape as [certificate-inspector](https://github.com/marska/certificate-insp
 - Multi-stage `Dockerfile`; images for `linux/amd64` and `linux/arm64`.
 - GitHub Actions: type check, lint, tests → build → smoke test of the container
   with the hardening flags applied → Trivy scan (HIGH/CRITICAL, fixed only) → push.
+  The checks run through the Dockerfile's own targets (`check`, `demo`), so the
+  pipeline and a local build cannot disagree about what "the checks" are.
 - Docker Hub, `marskadh/adguard-atlas`. Tags: semver from `v*.*.*` tags, `latest`
   for the newest release only, `edge` for the tip of `master`, short SHA.
 - Branches `master` and `dev`; Dependabot (npm, actions, docker) targets `dev`.
@@ -203,7 +205,9 @@ Same shape as [certificate-inspector](https://github.com/marska/certificate-insp
 **Demo on Cloudflare Pages**, also as in certificate-inspector: the `verify` job
 builds the static demo and hands it over as an artifact; a `deploy` job on `master`
 publishes exactly those files with `wrangler pages deploy` and then checks that the
-live site still sends its Content-Security-Policy. Project name `adguard-atlas`.
+live site still sends its Content-Security-Policy. Project name `adguard-atlas`;
+the job creates the project on its first run and reads the site's address back from
+Cloudflare rather than assuming it.
 
 ## 9. Decisions
 

@@ -1,0 +1,366 @@
+name: CI
+
+on:
+  push:
+    branches: [master, dev]
+    tags: ['v*.*.*']
+  pull_request:
+  workflow_dispatch:
+  # A published image ages while its source stands still: Node and Alpine fixes
+  # land in the base image tags continuously, and DB-IP publishes a new GeoIP
+  # database every month. Both reach the image only on a rebuild, so `edge` is
+  # rebuilt from scratch and re-scanned once a week.
+  schedule:
+    - cron: '0 5 * * 1'
+
+# A newer commit makes an in-flight run pointless, except on master and tags where
+# every published image should correspond to a completed run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  PAGES_PROJECT: adguard-atlas
+
+jobs:
+  verify:
+    name: Types, lint, tests and the static demo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v4
+
+      # The same Dockerfile targets a contributor runs locally, so the pipeline has
+      # no second definition of "the checks" to drift from the first.
+      - name: Type check, lint and test
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: check
+          cache-from: type=gha,scope=verify
+          cache-to: type=gha,scope=verify,mode=max
+
+      - name: Build the static demo
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: demo
+          outputs: type=local,dest=demo-dist
+          cache-from: type=gha,scope=verify
+
+      - name: Check the demo really is static and carries its policy
+        run: |
+          set -euo pipefail
+          test -f demo-dist/index.html
+          ls demo-dist/assets/*.js demo-dist/assets/*.css >/dev/null
+          # The server fills this placeholder in at start-up. The static build has no
+          # server, so a placeholder left here means a page with no configuration.
+          if grep -q '__ATLAS_CONFIG__' demo-dist/index.html; then
+            echo "::error::index.html still contains the configuration placeholder"
+            exit 1
+          fi
+          # Without this file a Pages deployment sends no Content-Security-Policy
+          # header, and the claim that the demo talks to nobody rests on a meta tag.
+          test -s demo-dist/_headers
+          grep -q "connect-src 'none'" demo-dist/_headers
+          grep -q "connect-src 'none'" demo-dist/index.html
+          echo "Demo: $(find demo-dist -type f | wc -l) files, $(du -sh demo-dist | cut -f1) total"
+
+      # Handed to the deploy job rather than rebuilt there, so the bytes that go to
+      # Cloudflare are the bytes checked above.
+      - name: Keep the demo for deployment
+        uses: actions/upload-artifact@v4
+        with:
+          name: static-demo
+          path: demo-dist
+          if-no-files-found: error
+          retention-days: 1
+
+  image:
+    name: Docker image
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publish only from this repository, and never from a pull request
+        id: gate
+        env:
+          # Secrets cannot be read in a job-level `if`, so the decision is made
+          # here and consumed as a step output.
+          HAS_CREDENTIALS: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+          # `dev` gets the full build, smoke test and scan, but nothing it produces
+          # reaches Docker Hub.
+          PUBLISHABLE_REF: ${{ github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v') }}
+        run: |
+          if [ "$HAS_CREDENTIALS" = "true" ] && [ "$PUBLISHABLE_REF" = "true" ] && [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Building without publishing (pull request, branch other than master, or DOCKERHUB_USERNAME/DOCKERHUB_TOKEN not set)."
+          fi
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Work out image name and tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          # Override the repository name by setting the DOCKERHUB_IMAGE
+          # repository variable, e.g. `myuser/adguard-atlas`.
+          images: ${{ vars.DOCKERHUB_IMAGE || format('{0}/adguard-atlas', secrets.DOCKERHUB_USERNAME || 'local') }}
+          # `latest` marks the newest release and nothing else. It is produced only
+          # by a semver tag, through metadata-action's default `latest=auto`; the
+          # moving tip of the branch goes out as `edge`.
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha,format=short
+            type=edge,branch=master
+          labels: |
+            org.opencontainers.image.title=AdGuard Atlas
+            org.opencontainers.image.description=A self-hosted world map of your network's DNS queries, live, from AdGuard Home's query log
+            org.opencontainers.image.licenses=GPL-3.0-only
+
+      # Built for the runner's architecture first so the image can actually be
+      # started and exercised before anything is pushed.
+      - name: Build for smoke test
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: adguard-atlas:smoke-test
+          # The scheduled run exists to pick up patched base images and this
+          # month's GeoIP database, and the layer cache would defeat exactly that.
+          # Resolve everything afresh on that path only.
+          pull: ${{ github.event_name == 'schedule' }}
+          no-cache: ${{ github.event_name == 'schedule' }}
+          cache-from: type=gha,scope=image
+          cache-to: type=gha,scope=image,mode=max
+
+      - name: Smoke test the image
+        run: |
+          set -euo pipefail
+
+          # The same hardening the compose file applies, so a change that breaks
+          # it fails here rather than on someone's server. Demo mode: the image has
+          # to come up with no AdGuard Home in sight.
+          docker run -d --name smoke \
+            --read-only \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            -e DEMO=true \
+            -p 127.0.0.1:8080:8080 \
+            adguard-atlas:smoke-test
+
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080/healthz >/dev/null 2>&1; then break; fi
+            if [ "$i" = "30" ]; then
+              echo "::error::Container never became healthy"
+              docker logs smoke
+              exit 1
+            fi
+            sleep 1
+          done
+
+          echo "--- it reports demo mode ---"
+          curl -fsS http://127.0.0.1:8080/healthz | grep -q '"mode":"demo"'
+
+          echo "--- the page is served, with its configuration filled in ---"
+          page=$(curl -fsS http://127.0.0.1:8080/)
+          grep -q '<title>AdGuard Atlas</title>' <<<"$page"
+          if grep -q '__ATLAS_CONFIG__' <<<"$page"; then
+            echo "::error::The page was served with its configuration placeholder"
+            exit 1
+          fi
+
+          echo "--- the app bundle is served ---"
+          bundle=$(grep -o 'assets/[^"]*\.js' <<<"$page" | head -1)
+          test -n "$bundle"
+          curl -fsS -o /dev/null "http://127.0.0.1:8080/${bundle}"
+
+          echo "--- security headers are present ---"
+          headers=$(curl -fsSI http://127.0.0.1:8080/)
+          echo "$headers"
+          grep -qi "content-security-policy:.*connect-src 'self'" <<<"$headers"
+          grep -qi 'x-content-type-options: nosniff' <<<"$headers"
+          grep -qi 'x-frame-options: DENY' <<<"$headers"
+
+          echo "--- unknown paths return 404, not the page ---"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/does-not-exist)" = "404"
+
+          echo "--- demo mode has no event stream to leak anything through ---"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/events)" = "404"
+
+          echo "--- it does not run as root ---"
+          test "$(docker exec smoke id -u)" = "10001"
+
+          echo "--- the GeoIP database is in the image ---"
+          # An image built without it starts, serves the page and locates nothing.
+          docker exec smoke test -s /usr/share/geoip/dbip-city-lite.mmdb
+          docker exec smoke cat /usr/share/geoip/SOURCE
+
+          echo "--- docker's own healthcheck agrees ---"
+          docker exec smoke node -e "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
+
+          docker rm -f smoke
+
+          echo "--- without configuration it refuses to start, and says why ---"
+          if out=$(docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges adguard-atlas:smoke-test 2>&1); then
+            echo "::error::The container started with no AdGuard Home configured"
+            exit 1
+          fi
+          echo "$out"
+          grep -q 'DEMO=true' <<<"$out"
+
+      - name: Container logs, if the smoke test failed
+        if: failure()
+        run: docker logs smoke || true
+
+      # Sees the Alpine packages and the Node runtime. It cannot see the app's npm
+      # dependencies: the server is one bundled file and the front end is minified
+      # chunks, with no node_modules left in the image. Dependabot covers that half
+      # from package-lock.json; neither check substitutes for the other.
+      #
+      # `ignore-unfixed` on purpose: a finding with no upstream fix is not a
+      # decision anyone can act on here, and a gate that cannot be satisfied is a
+      # gate people learn to ignore.
+      - name: Scan the image for known vulnerabilities
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: adguard-atlas:smoke-test
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: table
+
+      - name: Log in to Docker Hub
+        if: steps.gate.outputs.publish == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Only the runtime stage differs per architecture — the bundles and the GeoIP
+      # database are produced once on the runner — so arm64 costs almost nothing.
+      - name: Set up QEMU for the arm64 runtime layer
+        if: steps.gate.outputs.publish == 'true'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Build and push
+        if: steps.gate.outputs.publish == 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          cache-from: type=gha,scope=image
+
+      - name: Summarise
+        if: steps.gate.outputs.publish == 'true'
+        run: |
+          {
+            echo "### Published"
+            echo
+            echo '```'
+            echo "${{ steps.meta.outputs.tags }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    name: Demo on Cloudflare Pages
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Decide whether to deploy
+        id: gate
+        env:
+          # Same reasoning as the image job: secrets are unreadable in a job-level
+          # `if`, so the decision is made here and read back as an output.
+          HAS_CREDENTIALS: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' }}
+          PUBLISHABLE_REF: ${{ github.ref == 'refs/heads/master' }}
+        run: |
+          if [ "$HAS_CREDENTIALS" = "true" ] && [ "$PUBLISHABLE_REF" = "true" ] && [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Not deploying (pull request, branch other than master, or CLOUDFLARE_API_TOKEN/CLOUDFLARE_ACCOUNT_ID not set)."
+          fi
+
+      # No checkout and no rebuild: these are the files the verify job checked.
+      - name: Take the checked demo
+        if: steps.gate.outputs.deploy == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: static-demo
+          path: demo-dist
+
+      # `wrangler pages deploy` does not create a project when there is no terminal
+      # to ask in. The address is read back rather than assumed: Cloudflare appends
+      # a suffix when the plain `<name>.pages.dev` is already someone else's.
+      - name: Find the Pages project, creating it on the first run
+        if: steps.gate.outputs.deploy == 'true'
+        id: project
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects"
+          auth="Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
+
+          status=$(curl -sS -o project.json -w '%{http_code}' -H "$auth" "${api}/${PAGES_PROJECT}")
+          if [ "$status" != "200" ]; then
+            echo "No project ${PAGES_PROJECT} yet (Cloudflare answered ${status}), creating it"
+            status=$(curl -sS -o project.json -w '%{http_code}' -X POST -H "$auth" \
+              -H 'Content-Type: application/json' \
+              --data "{\"name\":\"${PAGES_PROJECT}\",\"production_branch\":\"master\"}" "$api")
+          fi
+          if [ "$status" != "200" ]; then
+            echo "::error::Cloudflare answered ${status}: $(jq -c '.errors' project.json 2>/dev/null || cat project.json)"
+            exit 1
+          fi
+
+          subdomain=$(jq -r '.result.subdomain' project.json)
+          test -n "$subdomain" && [ "$subdomain" != "null" ]
+          echo "url=https://${subdomain}" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy to Cloudflare Pages
+        if: steps.gate.outputs.deploy == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy demo-dist --project-name=${{ env.PAGES_PROJECT }} --branch=master
+
+      # A deployment that drops the headers still returns 200, so the check has to
+      # be for the header itself rather than for the page loading. A brand-new
+      # project takes a moment to answer on its address, hence the patience.
+      - name: Check the live demo still sends its CSP
+        if: steps.gate.outputs.deploy == 'true'
+        env:
+          DEMO_URL: ${{ steps.project.outputs.url }}
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            if headers=$(curl -fsSI "${DEMO_URL}/"); then break; fi
+            if [ "$i" = "30" ]; then
+              echo "::error::${DEMO_URL} never answered"
+              exit 1
+            fi
+            sleep 10
+          done
+          echo "$headers"
+          grep -qi "content-security-policy:.*connect-src 'none'" <<<"$headers"
+          grep -qi 'x-frame-options: DENY' <<<"$headers"
+          echo "### Demo deployed: ${DEMO_URL}" >> "$GITHUB_STEP_SUMMARY"
