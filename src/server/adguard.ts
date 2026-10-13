@@ -187,7 +187,9 @@ export class Poller {
   nextDelay(): number {
     const { intervalMs, maxBackoffMs = 60_000 } = this.options;
     if (this.failures === 0) return intervalMs;
-    return Math.min(Math.max(intervalMs, 1000) * 2 ** Math.min(this.failures, 10), maxBackoffMs);
+    // The cap must never be shorter than the normal interval (POLL_INTERVAL_MS goes up to
+    // 10 minutes): a failing instance is retried less often, never more often.
+    return Math.min(Math.max(intervalMs, 1000) * 2 ** Math.min(this.failures, 10), Math.max(maxBackoffMs, intervalMs));
   }
 
   private async loop(): Promise<void> {
