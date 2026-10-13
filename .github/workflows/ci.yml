@@ -67,7 +67,9 @@ jobs:
           # header, and the claim that the demo talks to nobody rests on a meta tag.
           test -s demo-dist/_headers
           grep -q "connect-src 'none'" demo-dist/_headers
-          grep -q "connect-src 'none'" demo-dist/index.html
+          # The same policy as a meta tag, for static hosts that ignore `_headers`.
+          # Vite writes the quotes in the attribute as character references.
+          grep -Eq "connect-src ('|&#39;)none('|&#39;)" demo-dist/index.html
           echo "Demo: $(find demo-dist -type f | wc -l) files, $(du -sh demo-dist | cut -f1) total"
 
       # Handed to the deploy job rather than rebuilt there, so the bytes that go to
