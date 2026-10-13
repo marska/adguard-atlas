@@ -43,7 +43,8 @@ committing it.
 `.github/workflows/ci.yml` builds the `check` and `demo` targets, then the image,
 which it starts with the hardening flags, exercises and scans before pushing.
 `master` publishes `edge` to the GitHub Container Registry and the demo to Cloudflare Pages; a `v*.*.*`
-tag publishes a release and `latest`; `dev` and pull requests publish nothing.
+tag (it must match `package.json` and `APP_VERSION`) publishes the versioned image,
+`latest` and a GitHub release; `dev` and pull requests publish nothing.
 Dependabot opens against `dev`. A change to the smoke test is worth running by hand
 against a local image first — it is plain shell.
 

@@ -210,6 +210,16 @@ and only then pushed.
 | tag `v1.2.3` | `1.2.3`, `1.2`, `1`, `latest` | — |
 | `dev`, pull requests | built, tested and scanned; nothing is published | — |
 
+A release is a tag: set the version in `package.json` and `APP_VERSION`
+(`src/shared/types.ts`), merge to `master`, then
+
+```sh
+git tag v1.2.3 && git push origin v1.2.3
+```
+
+The pipeline refuses a tag that disagrees with either, publishes the image
+and then opens a GitHub release with the changes since the previous tag.
+
 `latest` is the newest release and nothing else; the tip of `master` is `edge`. A
 weekly run rebuilds `edge` without cache, which is how patched base images and the
 current month's GeoIP database reach it.
