@@ -39,7 +39,7 @@
     "@types/topojson-client": "^3.1.5",
     "@types/topojson-specification": "^1.0.5",
     "@vitejs/plugin-react": "^5.0.0",
-    "esbuild": "^0.25.0",
+    "esbuild": "^0.28.2",
     "eslint": "^9.30.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "globals": "^16.0.0",
