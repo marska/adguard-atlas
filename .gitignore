@@ -1,0 +1,13 @@
+node_modules/
+dist/
+demo-dist/
+coverage/
+*.mmdb
+*.mmdb.gz
+.env
+.env.*
+!.env.example
+secrets/
+*.log
+.DS_Store
+.vite/

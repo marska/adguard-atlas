@@ -1,0 +1,17 @@
+.git
+.gitignore
+node_modules
+dist
+demo-dist
+coverage
+*.mmdb
+*.mmdb.gz
+.env
+.env.*
+secrets
+docker-compose.yml
+Dockerfile
+.dockerignore
+docs
+README.md
+!NOTICE.md
