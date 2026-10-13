@@ -522,9 +522,10 @@ a:hover {
 
 .stats {
   left: var(--gap);
-  width: 324px;
+  width: 392px;
   max-height: calc(100% - 78px - 64px);
   padding: 18px 18px 14px;
+  overflow-x: hidden;
   overflow-y: auto;
 }
 
@@ -697,8 +698,15 @@ a:hover {
 
 .bars {
   display: grid;
+  /* minmax(0, …): a long domain must shrink and ellipsise, not widen the track
+     and push the count out of the panel. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 2px;
   margin: 0 -8px;
+}
+
+.bars > li {
+  min-width: 0;
 }
 
 .bar {
