@@ -93,7 +93,7 @@ jobs:
       # Handed to the deploy job rather than rebuilt there, so the bytes that go to
       # Cloudflare are the bytes checked above.
       - name: Keep the demo for deployment
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: static-demo
           path: demo-dist
