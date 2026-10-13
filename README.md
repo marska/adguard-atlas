@@ -199,7 +199,7 @@ targets: `check`, then the static demo, then the image — started with the hard
 flags and exercised, scanned with Trivy (HIGH and CRITICAL with a fix available),
 and only then pushed.
 
-| Ref | Image tags on Docker Hub | Demo |
+| Ref | Tags of `ghcr.io/marska/adguard-atlas` | Demo |
 | --- | --- | --- |
 | `master` | `edge`, `master`, `sha-…` | deployed to Cloudflare Pages |
 | tag `v1.2.3` | `1.2.3`, `1.2`, `1`, `latest` | — |
@@ -209,12 +209,13 @@ and only then pushed.
 weekly run rebuilds `edge` without cache, which is how patched base images and the
 current month's GeoIP database reach it.
 
-Publishing needs the repository secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`
-(images are linux/amd64 and linux/arm64; the variable `DOCKERHUB_IMAGE` overrides
-the name), and the demo needs `CLOUDFLARE_API_TOKEN` (permission *Cloudflare Pages:
-Edit*) and `CLOUDFLARE_ACCOUNT_ID`. Without them the pipeline still builds and
-tests, and says in a notice that it published nothing. The Pages project
-`adguard-atlas` is created by the first deployment.
+Images are linux/amd64 and linux/arm64 and go to the GitHub Container Registry
+with the workflow's own token, so there are no registry credentials to configure; a
+fork publishes under its own name. The demo needs the repository secrets
+`CLOUDFLARE_API_TOKEN` (permission *Cloudflare Pages: Edit*) and
+`CLOUDFLARE_ACCOUNT_ID`; without them the pipeline says in a notice that it
+deployed nothing. The Pages project `adguard-atlas` is created by the first
+deployment.
 
 To serve the demo from a domain of your own, add it to the Pages project in the
 Cloudflare dashboard (*Custom domains*), then set the repository variable `DEMO_URL`

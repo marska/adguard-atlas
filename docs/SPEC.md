@@ -195,7 +195,8 @@ Same shape as [certificate-inspector](https://github.com/marska/certificate-insp
   with the hardening flags applied → Trivy scan (HIGH/CRITICAL, fixed only) → push.
   The checks run through the Dockerfile's own targets (`check`, `demo`), so the
   pipeline and a local build cannot disagree about what "the checks" are.
-- Docker Hub, `marskadh/adguard-atlas`. Tags: semver from `v*.*.*` tags, `latest`
+- GitHub Container Registry, `ghcr.io/marska/adguard-atlas`, pushed with the
+  workflow's own token — no registry credentials are stored. Tags: semver from `v*.*.*` tags, `latest`
   for the newest release only, `edge` for the tip of `master`, short SHA.
 - Branches `master` and `dev`; Dependabot (npm, actions, docker) targets `dev`.
 - Weekly scheduled rebuild without cache to pick up base-image patches.

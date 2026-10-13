@@ -2,7 +2,7 @@ version: 2
 
 # Everything below opens against `dev`, not `master`: `dev` is where a bump that
 # needs its neighbours moved in the same breath gets worked out, and nothing built
-# from it reaches Docker Hub or the demo.
+# from it reaches the registry or the demo.
 #
 # `target-branch` applies to version updates only. Dependabot security updates,
 # the ones raised from an advisory, always open against the default branch.

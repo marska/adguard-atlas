@@ -86,24 +86,27 @@ jobs:
     name: Docker image
     needs: verify
     runs-on: ubuntu-latest
+    # The image goes to the GitHub Container Registry under this repository's own
+    # name, with the token every run is handed: there is no credential to store,
+    # and a fork publishes to the fork's namespace, never to this one.
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: Publish only from this repository, and never from a pull request
+      - name: Publish from master and release tags only, never from a pull request
         id: gate
         env:
-          # Secrets cannot be read in a job-level `if`, so the decision is made
-          # here and consumed as a step output.
-          HAS_CREDENTIALS: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
           # `dev` gets the full build, smoke test and scan, but nothing it produces
-          # reaches Docker Hub.
+          # reaches the registry.
           PUBLISHABLE_REF: ${{ github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v') }}
         run: |
-          if [ "$HAS_CREDENTIALS" = "true" ] && [ "$PUBLISHABLE_REF" = "true" ] && [ "${{ github.event_name }}" != "pull_request" ]; then
+          if [ "$PUBLISHABLE_REF" = "true" ] && [ "${{ github.event_name }}" != "pull_request" ]; then
             echo "publish=true" >> "$GITHUB_OUTPUT"
           else
             echo "publish=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Building without publishing (pull request, branch other than master, or DOCKERHUB_USERNAME/DOCKERHUB_TOKEN not set)."
+            echo "::notice::Building without publishing (pull request, or a branch other than master)."
           fi
 
       - uses: docker/setup-buildx-action@v4
@@ -112,9 +115,9 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          # Override the repository name by setting the DOCKERHUB_IMAGE
-          # repository variable, e.g. `myuser/adguard-atlas`.
-          images: ${{ vars.DOCKERHUB_IMAGE || format('{0}/adguard-atlas', secrets.DOCKERHUB_USERNAME || 'local') }}
+          # metadata-action lowercases the name, which the registry requires, and
+          # sets the `source` label that ties the package to this repository.
+          images: ghcr.io/${{ github.repository }}
           # `latest` marks the newest release and nothing else. It is produced only
           # by a semver tag, through metadata-action's default `latest=auto`; the
           # moving tip of the branch goes out as `edge`.
@@ -243,12 +246,13 @@ jobs:
           exit-code: '1'
           format: table
 
-      - name: Log in to Docker Hub
+      - name: Log in to the GitHub Container Registry
         if: steps.gate.outputs.publish == 'true'
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       # Only the runtime stage differs per architecture — the bundles and the GeoIP
       # database are produced once on the runner — so arm64 costs almost nothing.
@@ -267,6 +271,22 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
           cache-from: type=gha,scope=image
+
+      # A package can be private while its repository is public, and then every
+      # `docker pull` in the README fails for everyone but the owner. That is a
+      # setting, not a build fault, so it is reported rather than failed on.
+      - name: Check the image can be pulled without logging in
+        if: steps.gate.outputs.publish == 'true'
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          docker logout ghcr.io
+          image=$(head -1 <<<"$TAGS")
+          if docker buildx imagetools inspect "$image" >/dev/null 2>&1; then
+            echo "Anonymous pull of ${image} works"
+          else
+            echo "::warning::${image} cannot be pulled anonymously. Make the package public: repository page → Packages → adguard-atlas → Package settings → Change visibility."
+          fi
 
       - name: Summarise
         if: steps.gate.outputs.publish == 'true'

@@ -7,7 +7,7 @@
 
 services:
   adguard-atlas:
-    image: marskadh/adguard-atlas:latest
+    image: ghcr.io/marska/adguard-atlas:latest
     # Built from this checkout when the image is not present locally.
     # Remove this line to always use the published image.
     build: .
