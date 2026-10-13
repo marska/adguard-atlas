@@ -351,18 +351,25 @@ jobs:
       - name: Check the live demo still sends its CSP
         if: steps.gate.outputs.deploy == 'true'
         env:
-          DEMO_URL: ${{ steps.project.outputs.url }}
+          PAGES_URL: ${{ steps.project.outputs.url }}
+          # The demo's own address, when it has one besides pages.dev: set the
+          # repository variable DEMO_URL once the custom domain is active in
+          # Cloudflare, and it is held to the same check.
+          DEMO_URL: ${{ vars.DEMO_URL }}
         run: |
           set -euo pipefail
-          for i in $(seq 1 30); do
-            if headers=$(curl -fsSI "${DEMO_URL}/"); then break; fi
-            if [ "$i" = "30" ]; then
-              echo "::error::${DEMO_URL} never answered"
-              exit 1
-            fi
-            sleep 10
+          for url in "$PAGES_URL" ${DEMO_URL:+"${DEMO_URL%/}"}; do
+            for i in $(seq 1 30); do
+              if headers=$(curl -fsSI "${url}/"); then break; fi
+              if [ "$i" = "30" ]; then
+                echo "::error::${url} never answered"
+                exit 1
+              fi
+              sleep 10
+            done
+            echo "--- ${url} ---"
+            echo "$headers"
+            grep -qi "content-security-policy:.*connect-src 'none'" <<<"$headers"
+            grep -qi 'x-frame-options: DENY' <<<"$headers"
           done
-          echo "$headers"
-          grep -qi "content-security-policy:.*connect-src 'none'" <<<"$headers"
-          grep -qi 'x-frame-options: DENY' <<<"$headers"
-          echo "### Demo deployed: ${DEMO_URL}" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Demo deployed: ${DEMO_URL:-$PAGES_URL}" >> "$GITHUB_STEP_SUMMARY"

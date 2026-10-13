@@ -216,6 +216,10 @@ Edit*) and `CLOUDFLARE_ACCOUNT_ID`. Without them the pipeline still builds and
 tests, and says in a notice that it published nothing. The Pages project
 `adguard-atlas` is created by the first deployment.
 
+To serve the demo from a domain of your own, add it to the Pages project in the
+Cloudflare dashboard (*Custom domains*), then set the repository variable `DEMO_URL`
+to its address: every deployment then checks that address as well as `pages.dev`.
+
 Layout: `src/server` (polling, classification, GeoIP, event stream), `src/web`
 (React shell, canvas map, in-browser demo generator), `src/shared` (the event type
 both sides speak), `test` (including a fake AdGuard Home and recorded query-log
