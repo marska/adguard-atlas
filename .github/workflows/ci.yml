@@ -373,7 +373,7 @@ jobs:
       # No checkout and no rebuild: these are the files the verify job checked.
       - name: Take the checked demo
         if: steps.gate.outputs.deploy == 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: static-demo
           path: demo-dist
