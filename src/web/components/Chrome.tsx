@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { QUERY_CLASSES, REPO_URL, type ClientConfig } from '../../shared/types';
 import type { AtlasStore, Snapshot } from '../store';
-import { CLASS_LABEL, ClassGlyph, fmtCompact, fmtShare, Icon, Logo } from './bits';
+import { CLASS_HINT, CLASS_LABEL, ClassGlyph, fmtCompact, fmtShare, Icon, Logo } from './bits';
 
 interface ChromeProps {
   store: AtlasStore;
@@ -173,30 +173,55 @@ export function Notices({ items }: { items: string[] }) {
   );
 }
 
-function Legend() {
+function AllowedGlyph() {
+  return (
+    <svg width="26" height="12" viewBox="0 0 26 12" className="glyph-allowed" aria-hidden>
+      <path d="M2 10C8 1 18 1 24 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="24" cy="8" r="2" fill="currentColor" />
+    </svg>
+  );
+}
+
+/**
+ * With a store, every entry toggles its class (F16), in step with the class rows in
+ * the counters. Without one it is a caption, as in kiosk mode (F18).
+ */
+export function Legend({ store, snap }: { store?: AtlasStore; snap?: Snapshot }) {
   return (
     <ul className="legend">
-      <li>
-        <svg width="26" height="12" viewBox="0 0 26 12" className="glyph-allowed" aria-hidden>
-          <path d="M2 10C8 1 18 1 24 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          <circle cx="24" cy="8" r="2" fill="currentColor" />
-        </svg>
-        Allowed
-      </li>
-      {QUERY_CLASSES.filter((c) => c !== 'allowed').map((cls) => (
-        <li key={cls}>
-          <ClassGlyph cls={cls} />
-          {CLASS_LABEL[cls]}
-        </li>
-      ))}
+      {QUERY_CLASSES.map((cls) => {
+        const glyph = cls === 'allowed' ? <AllowedGlyph /> : <ClassGlyph cls={cls} />;
+        if (!store || !snap) {
+          return (
+            <li key={cls}>
+              {glyph}
+              {CLASS_LABEL[cls]}
+            </li>
+          );
+        }
+        const shown = snap.filters.classes[cls];
+        return (
+          <li key={cls}>
+            <button
+              type="button"
+              aria-pressed={shown}
+              onClick={() => store.toggleClass(cls)}
+              title={`${CLASS_HINT[cls]}. Click to ${shown ? 'hide' : 'show'}.`}
+            >
+              {glyph}
+              {CLASS_LABEL[cls]}
+            </button>
+          </li>
+        );
+      })}
     </ul>
   );
 }
 
-export function Footer({ config }: { config: ClientConfig }) {
+export function Footer({ store, snap, config }: ChromeProps) {
   return (
     <footer className="foot">
-      <Legend />
+      <Legend store={store} snap={snap} />
       <p className="caveat">
         Shows what devices <em>asked for</em> — not where their traffic went.
       </p>

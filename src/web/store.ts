@@ -108,6 +108,11 @@ export function filtersActive(f: Filters): number {
   );
 }
 
+/** F16: the filter text as lower-case words; each must appear in the domain or the device. */
+export function textWords(text: string): string[] {
+  return text.toLowerCase().split(/\s+/).filter(Boolean);
+}
+
 function top(map: Map<string, Row>, n: number): Row[] {
   return [...map.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)).slice(0, n);
 }
@@ -282,22 +287,26 @@ export class AtlasStore {
   // --- derivation ---------------------------------------------------------
 
   /** Everything except the class filter. */
-  private matchesBase(e: AtlasEvent, f: Filters, text: string): boolean {
+  private matchesBase(e: AtlasEvent, f: Filters, words: string[]): boolean {
     if (f.device && e.client !== f.device) return false;
     if (f.instance && e.instance !== f.instance) return false;
-    if (text && !e.domain.includes(text)) return false;
+    if (words.length > 0) {
+      const domain = e.domain.toLowerCase();
+      const client = e.client.toLowerCase();
+      for (const w of words) if (!domain.includes(w) && !client.includes(w)) return false;
+    }
     return true;
   }
 
   matches(e: AtlasEvent, f: Filters = this.snapshot.filters): boolean {
-    return f.classes[e.cls] && this.matchesBase(e, f, f.text.trim().toLowerCase());
+    return f.classes[e.cls] && this.matchesBase(e, f, textWords(f.text));
   }
 
   private compute(filters: Filters, selection: Selection): View {
     const now = this.now();
     const start = now - this.windowMs;
     const bucketMs = this.windowMs / BUCKETS;
-    const text = filters.text.trim().toLowerCase();
+    const words = textWords(filters.text);
 
     const byClass: Record<QueryClass, number> = { allowed: 0, blocked: 0, local: 0, noanswer: 0 };
     const buckets: [number, number, number][] = Array.from({ length: BUCKETS }, () => [0, 0, 0]);
@@ -318,7 +327,7 @@ export class AtlasStore {
     for (const e of this.events) {
       allDevices.add(e.client);
       allInstances.add(e.instance);
-      if (!this.matchesBase(e, filters, text)) continue;
+      if (!this.matchesBase(e, filters, words)) continue;
       // Counted before the class filter, so hiding a class does not zero its own counter.
       byClass[e.cls]++;
       if (!filters.classes[e.cls]) continue;
@@ -361,7 +370,7 @@ export class AtlasStore {
     const feed: AtlasEvent[] = [];
     for (let i = this.events.length - 1; i >= 0 && feed.length < FEED_SIZE; i--) {
       const e = this.events[i]!;
-      if (filters.classes[e.cls] && this.matchesBase(e, filters, text)) feed.push(e);
+      if (filters.classes[e.cls] && this.matchesBase(e, filters, words)) feed.push(e);
     }
 
     let detail: Detail | null = null;

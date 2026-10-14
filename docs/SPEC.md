@@ -85,7 +85,10 @@ One container, read-only access to AdGuard Home, no changes to the network.
 - F14. Live feed: the most recent queries with time, device, domain, country, class.
 - F15. Counters for the window: queries, blocked share, top countries, top domains,
   top devices.
-- F16. Filters: device, class, instance, text match on domain (U3, U4).
+- F16. Filters: device, class, instance and text (U3, U4). The text is split into
+  words; every word must appear in the domain or in the device name, so `doo clip`
+  finds the doorbell camera's clips. The map's legend toggles the classes too, in
+  step with the counters; in kiosk mode it stays a caption.
 - F17. Clicking a marker or a country lists the domains and devices behind it (U3).
 - F18. Kiosk mode (`?kiosk`): map only (U6).
 - F19. Privacy mode: device names and domains masked on screen (U7), switchable in

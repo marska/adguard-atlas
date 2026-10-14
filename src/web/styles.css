@@ -1124,10 +1124,24 @@ a:hover {
   white-space: nowrap;
 }
 
-.legend li {
+.legend li,
+.legend button {
   display: flex;
   align-items: center;
   gap: 7px;
+}
+
+.legend button {
+  transition: color 0.15s, opacity 0.2s;
+}
+
+.legend button:hover {
+  color: var(--text);
+}
+
+.legend button[aria-pressed='false'] {
+  opacity: 0.38;
+  text-decoration: line-through;
 }
 
 .caveat {

@@ -140,7 +140,7 @@ export function App({ store, config, initialUrl }: Props) {
           </nav>
           <StatsPanel {...panel} />
           <SidePanel {...panel} />
-          <Footer config={config} />
+          <Footer store={store} snap={snap} config={config} />
         </>
       )}
       <Notices items={issues} />

@@ -170,8 +170,8 @@ function Filters({ store, snap, privacyForced }: PanelProps) {
           <input
             type="search"
             value={filters.text}
-            placeholder="Filter by domain"
-            aria-label="Filter by domain"
+            placeholder="Filter by domain or device"
+            aria-label="Filter by domain or device"
             spellCheck={false}
             autoComplete="off"
             onChange={(e) => store.setFilters({ text: e.target.value })}

@@ -112,7 +112,8 @@ the page only hides them on screen.
 | **Pulses at home** | blocked (solid ring), local (thin ring), no answer (broken ring) |
 | **Markers** | grow with the number of queries in the window |
 | **Click** a marker, a country, a feed line or a top-list row | the domains and devices behind it |
-| **Class rows** in the counters | click to hide or show a class |
+| **Class rows** in the counters, or the **legend** | click to hide or show a class |
+| **Filter field** | every word must appear in the domain or the device name: `doo clip` |
 | **Wheel / pinch / drag** | zoom and pan; double-click resets |
 
 | Key | |

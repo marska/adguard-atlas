@@ -1,5 +1,8 @@
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import type { AtlasEvent } from '../src/shared/types';
+import { QUERY_CLASSES, type AtlasEvent } from '../src/shared/types';
+import { Legend } from '../src/web/components/Chrome';
 import { CITIES, DESTINATIONS, DEVICES } from '../src/web/demo/data';
 import { DemoGenerator } from '../src/web/demo/generator';
 import { ArcScheduler } from '../src/web/map/scheduler';
@@ -173,6 +176,37 @@ describe('store', () => {
     store.clearFilters();
     store.setFilters({ text: ' D1.EX ' });
     expect(store.getSnapshot().view.total).toBe(2);
+  });
+
+  it('matches every word of the text against the domain or the device (F16)', () => {
+    const store = fresh();
+    const ids = () => store.getSnapshot().view.feed.map((e) => e.id).sort();
+    store.setFilters({ text: 'phone' });
+    expect(ids()).toEqual(['3', '4']);
+    store.setFilters({ text: '  PHO   ads ' });
+    expect(ids()).toEqual(['3']);
+    store.setFilters({ text: 'tv d1' });
+    expect(ids()).toEqual(['1', '2']);
+    store.setFilters({ text: 'phone d1' });
+    expect(ids()).toEqual([]);
+    expect(store.matches(make(9, { client: 'phone', domain: 'ads.example' }))).toBe(false);
+    store.setFilters({ text: 'ads phone' });
+    expect(store.matches(make(9, { client: 'phone', domain: 'ads.example' }))).toBe(true);
+  });
+
+  it('lets the legend toggle classes, but not in kiosk mode (F16, F18)', () => {
+    const store = fresh();
+    const live = renderToStaticMarkup(createElement(Legend, { store, snap: store.getSnapshot() }));
+    expect(live.match(/<button/g)).toHaveLength(QUERY_CLASSES.length);
+    expect(live).not.toContain('aria-pressed="false"');
+
+    store.toggleClass('noanswer');
+    const toggled = renderToStaticMarkup(createElement(Legend, { store, snap: store.getSnapshot() }));
+    expect(toggled.match(/aria-pressed="false"[^>]*>(.*?)<\/button>/)?.[1]).toContain('No answer');
+
+    const caption = renderToStaticMarkup(createElement(Legend));
+    expect(caption).not.toContain('<button');
+    expect(caption).toContain('No answer');
   });
 
   it('lists the domains and devices behind a place or a country (F17)', () => {
