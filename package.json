@@ -1,6 +1,6 @@
 {
   "name": "adguard-atlas",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A self-hosted world map of your network's DNS queries, live, from AdGuard Home's query log.",
   "license": "GPL-3.0-only",
   "private": true,

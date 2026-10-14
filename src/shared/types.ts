@@ -4,7 +4,7 @@ export type QueryClass = 'allowed' | 'blocked' | 'local' | 'noanswer';
 
 export const QUERY_CLASSES: readonly QueryClass[] = ['allowed', 'blocked', 'local', 'noanswer'];
 
-export const APP_VERSION = '0.1.0';
+export const APP_VERSION = '0.2.0';
 export const REPO_URL = 'https://github.com/marska/adguard-atlas';
 
 /** Where an answer points, as far as the GeoIP database knows. */
