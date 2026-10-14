@@ -131,7 +131,7 @@ jobs:
 
       - name: Work out image name and tags
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           # metadata-action lowercases the name, which the registry requires, and
           # sets the `source` label that ties the package to this repository.
