@@ -276,7 +276,7 @@ jobs:
       # database are produced once on the runner — so arm64 costs almost nothing.
       - name: Set up QEMU for the arm64 runtime layer
         if: steps.gate.outputs.publish == 'true'
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - name: Build and push
         if: steps.gate.outputs.publish == 'true'
